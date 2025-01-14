@@ -10,6 +10,7 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain_core.documents.base import Document
 from langchain_community.document_loaders import GitLoader
 from langchain_chroma import Chroma
+from langchain_redis import RedisConfig, RedisVectorStore
 from langchain_openai.embeddings import OpenAIEmbeddings
 from langchain_openai.chat_models import ChatOpenAI
 
@@ -47,6 +48,25 @@ async def create_db(docs: list[Document]|None=None) -> Chroma:
         await db.aadd_documents(docs)
     return db
 
+async def create_redis_db(docs: list[Document]|None=None) -> RedisVectorStore:
+    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+    redis_config = RedisConfig(
+        index_name="langchain",
+        redis_url=REDIS_URL,
+        metadata_schema=[
+            {"name": "source", "type": "tag"},
+            {"name": "file_path", "type": "tag"},
+            {"name": "file_name", "type": "tag"},
+            {"name": "file_type", "type": "tag"}
+        ]
+    )
+    embeddings = OpenAIEmbeddings()
+    db = RedisVectorStore(embeddings, redis_config)
+    if docs is not None:
+        ids = await db.aadd_documents(docs)
+        print(f"Added {len(ids)} documents to Redis")
+    return db
+
 def create_template() -> ChatPromptTemplate:
     human_prompt = """You are a helpful assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise.
 Question: {question} 
@@ -71,8 +91,10 @@ async def main():
     
     query = "AWSのS3からデータを読み込むためのDocument Loaderはありますか? 日本語で答えてください。"
 
+    print(docs[0].metadata)
     ## RAG Retrieval
-    db = await create_db()
+    #db = await create_db()
+    db = await create_redis_db(docs)
     retriever = db.as_retriever()
     context_docs = retriever.invoke(query, k=5)
     first_doc = context_docs[0]
