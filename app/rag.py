@@ -49,6 +49,10 @@ async def create_db(docs: list[Document]|None=None) -> Chroma:
     return db
 
 async def create_redis_db(docs: list[Document]|None=None) -> RedisVectorStore:
+    """
+    Create a RedisVectorStore instance with the given documents.
+    https://python.langchain.com/docs/integrations/vectorstores/redis/
+    """
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
     redis_config = RedisConfig(
         index_name="langchain",
