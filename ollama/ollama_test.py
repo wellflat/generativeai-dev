@@ -1,20 +1,21 @@
 #!/usr/bin/env python
 
+import asyncio
 from langchain_ollama import ChatOllama
 
 
-def chat():
+async def chat():
     chat = ChatOllama(
-        model="gemma",
+        model="phi4",
         temperature=0.5,
     )
     messages=[
         ("system", "You are a helpful assistant."),
-        ("human", "Hello!"),
+        ("human", "こんにちは"),
     ]
-    for chunk in chat.stream(messages):
-        print(chunk)
+    async for chunk in chat.astream(messages):
+        print(chunk.content)
     
 if __name__ == "__main__":
-    chat()
+    asyncio.run(chat())
     
