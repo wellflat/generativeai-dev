@@ -6,9 +6,9 @@ from typing import Annotated, Any
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.runnables import ConfigurableField
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
 
 from langgraph.graph import END, StateGraph
 
@@ -36,9 +36,8 @@ def check_node(state: State) -> dict[str, Any]:
  回答: {answer}
  """.strip()
     )
-    chain = prompt | llm.with_structured_output(Judgement) # type: ignore[arg-type]
-    result: Judgement = chain.invoke({"query": query, "answer": answer})
-    #result = Judgement(**result_dict)
+    chain = prompt | llm.with_structured_output(Judgement, method="function_calling") # type: ignore[arg-type]
+    result: Judgement = chain.invoke({"query": query, "answer": answer}) # type: ignore[arg-type]
 
     return {
         "current_judge": result.judge,
@@ -89,7 +88,7 @@ def answering_node(state: State) -> dict[str, Any]:
 
 
 if __name__ == "__main__":
-    llm = ChatOpenAI(model="gpt-4o", temperature=0.0)
+    llm = ChatOpenAI(model="gpt-4o", temperature=0.0, verbose=True)
     # 後からmax_tokensの値を変更できるように、変更可能なフィールドを宣言
     llm = llm.configurable_fields(max_tokens=ConfigurableField(id="max_tokens"))
 
