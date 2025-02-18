@@ -16,7 +16,7 @@ from langchain.schema.runnable.config import RunnableConfig
 
 load_dotenv()
 
-@cl.set_chat_profiles
+@cl.set_chat_profiles # type: ignore[no-redef]
 async def chat_profile() -> list[cl.ChatProfile]:
     return [
         cl.ChatProfile(
