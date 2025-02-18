@@ -4,7 +4,7 @@ import httpx
 
 API_URL="http://localhost:11434/api/chat"
 
-def run():
+def run() -> None:
   headers = {"Content-type": "application/json"}
   json = {
     "model": "gemma",

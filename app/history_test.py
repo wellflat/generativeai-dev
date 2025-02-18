@@ -1,15 +1,14 @@
 import os
+
 from dotenv_flow import dotenv_flow
+from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.chat_history import BaseChatMessageHistory
-from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.runnables import Runnable, RunnableConfig
-from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_openai import ChatOpenAI
 from langchain_redis import RedisChatMessageHistory
-
 
 dotenv_flow("dev")
 
@@ -55,7 +54,7 @@ if __name__ == "__main__":
     response1 = runnable.invoke({"input": "こんにちは、私は3歳です"}, config=config)
     print("AI Response 1:", response1)
 
-    response2 = runnable.invoke({"input": "私は何歳か覚えていますか？"}, config=config)
+    response2 = runnable.invoke({"input": "私は何歳か覚えていますか?"}, config=config)
     print("AI Response 2:", response2)
 
     print(runnable.get_session_history(session_id=session_id))

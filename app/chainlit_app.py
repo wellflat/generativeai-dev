@@ -1,20 +1,23 @@
 #!/usr/bin/env python
 
 import os
-from dotenv import load_dotenv
+from typing import cast
+
 import chainlit as cl
 from chainlit.input_widget import Slider
+from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
+from pydantic import SecretStr
+
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema import StrOutputParser
 from langchain.schema.runnable import Runnable
 from langchain.schema.runnable.config import RunnableConfig
-from typing import cast
 
 load_dotenv()
 
 @cl.set_chat_profiles
-async def chat_profile():
+async def chat_profile() -> list[cl.ChatProfile]:
     return [
         cl.ChatProfile(
             name="GPT-3.5",
@@ -29,7 +32,7 @@ async def chat_profile():
     ]
 
 @cl.on_chat_start
-async def on_chat_start():
+async def on_chat_start() -> None:
     settings = await cl.ChatSettings(
         [
             Slider(
@@ -45,12 +48,13 @@ async def on_chat_start():
     chat_profile = cl.user_session.get("chat_profile")
     print(chat_profile)
     api_key = os.getenv("OPENAI_API_KEY")
-    model = ChatOpenAI(
-        model="gpt-4o",
-        streaming=True,
-        temperature=settings["Temperature"],
-        api_key=api_key
-    )
+    if api_key:
+        model = ChatOpenAI(
+            model="gpt-4o",
+            streaming=True,
+            temperature=settings["Temperature"],
+            api_key=SecretStr(api_key)
+        )
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", "You're a helpful assistant."),
@@ -59,12 +63,12 @@ async def on_chat_start():
     )
     runnable = prompt | model | StrOutputParser()
     cl.user_session.set("runnable", runnable)
-    await cl.Message(content="こんにちは、何を話しましょうか？").send()
+    await cl.Message(content="こんにちは、何を話しましょうか?").send()
 
 @cl.on_message
-async def on_message(message: cl.Message):
+async def on_message(message: cl.Message) -> None:
     print(cl.chat_context.to_openai())
-    
+
     runnable = cast(Runnable, cl.user_session.get("runnable"))
     res = cl.Message(content="")
     async for chunk in runnable.astream(
@@ -72,8 +76,8 @@ async def on_message(message: cl.Message):
         config=RunnableConfig(callbacks=[cl.LangchainCallbackHandler()]),
     ):
         await res.stream_token(chunk)
-    
+
     await res.update()
 
-if __name__ == '__main__':
-    print('Hello, Chainlit')
+if __name__ == "__main__":
+    print("Hello, Chainlit")
