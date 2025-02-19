@@ -4,6 +4,7 @@ import operator
 from pprint import pprint
 from typing import Annotated, Any
 
+from dotenv_flow import dotenv_flow
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import ConfigurableField
@@ -12,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from langgraph.graph import END, StateGraph
 
+dotenv_flow("dev")
 
 class State(BaseModel):
     query: str = Field(..., description="ユーザーからの質問")
@@ -36,9 +38,11 @@ def check_node(state: State) -> dict[str, Any]:
  回答: {answer}
  """.strip()
     )
+    # 内部的にfunction callingでPydanticToolsParserを利用してオブジェクト変換
+    # OutputParserとしてPydanticToolsParserを直接Chainに含めて利用しても良い
     chain = prompt | llm.with_structured_output(Judgement, method="function_calling") # type: ignore[arg-type]
     result: Judgement = chain.invoke({"query": query, "answer": answer}) # type: ignore[arg-type]
-
+    print(result)
     return {
         "current_judge": result.judge,
         "judgement_reason": result.reason
@@ -68,7 +72,7 @@ def selection_node(state: State) -> dict[str, Any]:
     return {"current_role": selected_role}
 
 
-def answering_node(state: State) -> dict[str, Any]:
+def answer_node(state: State) -> dict[str, Any]:
     query = state.query
     role = state.current_role
     role_details = "\n".join([f"- {v['name']}: {v['details']}" for v in ROLES.values()])
@@ -92,7 +96,7 @@ if __name__ == "__main__":
     # 後からmax_tokensの値を変更できるように、変更可能なフィールドを宣言
     llm = llm.configurable_fields(max_tokens=ConfigurableField(id="max_tokens"))
 
-
+    # 回答ロールの定義, ここではオンメモリで定義
     ROLES = {
         "1": {
             "name": "一般知識エキスパート",
@@ -111,14 +115,14 @@ if __name__ == "__main__":
          可能であれば適切なアドバイスも行ってください。",
         },
     }
-
+    # ワークフローの定義
     workflow = StateGraph(State)
-    workflow.add_node("answer", answering_node)
+    workflow.add_node("answer", answer_node)
     workflow.add_node("check", check_node)
     workflow.add_node("selection", selection_node)
-    workflow.set_entry_point("selection")
-    workflow.add_edge("selection", "answer")
-    workflow.add_edge("answer", "check")
+    workflow.set_entry_point("selection")  # 開始ノードをselectionノードに設定
+    workflow.add_edge("selection", "answer")  # selectionノードからanswerノードへの遷移
+    workflow.add_edge("answer", "check")  # answerノードからcheckノードへの遷移
     # checkノードから次のノードへの遷移に条件付きエッジを定義
     # state.current_judgeの値がTrueならENDノードへ、Falseならselectionノードへ
     workflow.add_conditional_edges(
@@ -130,5 +134,5 @@ if __name__ == "__main__":
     initial_state = State(query="生成AIについて教えてください")
     result = compiled_workflow.invoke(initial_state)
     pprint(result)
-    # グラフを描画
+    # 状態グラフを描画
     compiled_workflow.get_graph().draw_png("workflow.png")
