@@ -2,7 +2,7 @@
 
 import operator
 from pprint import pprint
-from typing import Annotated, Any
+from typing import Annotated
 
 from dotenv_flow import dotenv_flow
 from langchain_core.output_parsers import StrOutputParser
@@ -15,6 +15,7 @@ from langgraph.graph import END, StateGraph
 
 dotenv_flow("dev")
 
+# ワークフローの状態を表すモデル
 class State(BaseModel):
     query: str = Field(..., description="ユーザーからの質問")
     current_role: str = Field(default="", description="選定された回答ロール")
@@ -22,34 +23,13 @@ class State(BaseModel):
     current_judge: bool = Field(default=False, description="品質チェックの結果")
     judgement_reason: str = Field(default="", description="品質チェックの理由")
 
-
+# 品質チェックの結果を表すモデル
 class Judgement(BaseModel):
     reason: str = Field(default="", description="判定理由")
     judge: bool = Field(default=False, description="判定結果")
 
 
-def check_node(state: State) -> dict[str, Any]:
-    query = state.query
-    answer = state.messages[-1]
-    prompt = ChatPromptTemplate.from_template(
- """以下の回答の品質をチェックし、問題がある場合は'False'、問題がない場合は'True'を回答してください。また、その判断理由も説明してください。
-
- ユーザーからの質問: {query}
- 回答: {answer}
- """.strip()
-    )
-    # 内部的にfunction callingでPydanticToolsParserを利用してオブジェクト変換
-    # OutputParserとしてPydanticToolsParserを直接Chainに含めて利用しても良い
-    chain = prompt | llm.with_structured_output(Judgement, method="function_calling") # type: ignore[arg-type]
-    result: Judgement = chain.invoke({"query": query, "answer": answer}) # type: ignore[arg-type]
-    print(result)
-    return {
-        "current_judge": result.judge,
-        "judgement_reason": result.reason
-    }
-
-
-def selection_node(state: State) -> dict[str, Any]:
+def selection_node(state: State) -> dict[str, str]:
     query = state.query
     role_options = "\n".join([f"{k}. {v['name']}: {v['description']}" for k, v in ROLES.items()])
     prompt = ChatPromptTemplate.from_template(
@@ -63,16 +43,16 @@ def selection_node(state: State) -> dict[str, Any]:
  質問: {query}
  """.strip()
      )
-     # 選択肢の番号のみを返すことを期待したいため、max_tokensの値を1に変更
+    # 選択肢の番号のみを返すことを期待したいため、max_tokensの値を1に変更
     chain = prompt | llm.with_config(configurable={"max_tokens": 1}) | StrOutputParser()
     role_number = chain.invoke({"role_options": role_options, "query": query})
 
     selected_role = ROLES[role_number.strip()]["name"]
-
+    state.current_role = selected_role
     return {"current_role": selected_role}
 
 
-def answer_node(state: State) -> dict[str, Any]:
+def answer_node(state: State) -> dict[str, list[str]]:
     query = state.query
     role = state.current_role
     role_details = "\n".join([f"- {v['name']}: {v['details']}" for v in ROLES.values()])
@@ -91,8 +71,28 @@ def answer_node(state: State) -> dict[str, Any]:
     return {"messages": [answer]}
 
 
+def check_node(state: State) -> dict[str, bool|str]:
+    query = state.query
+    answer = state.messages[-1]
+    prompt = ChatPromptTemplate.from_template(
+ """以下の回答の品質をチェックし、問題がある場合は'False'、問題がない場合は'True'を回答してください。また、その判断理由も説明してください。
+
+ ユーザーからの質問: {query}
+ 回答: {answer}
+ """.strip()
+    )
+    # 内部的にfunction callingでPydanticToolsParserを利用してオブジェクト変換
+    # OutputParserとしてPydanticToolsParserを直接Chainに含めて利用しても良い
+    chain = prompt | llm.with_structured_output(Judgement, method="function_calling") # type: ignore[arg-type]
+    result: Judgement = chain.invoke({"query": query, "answer": answer}) # type: ignore[arg-type]
+    return {
+        "current_judge": result.judge,
+        "judgement_reason": result.reason
+    }
+
+
 if __name__ == "__main__":
-    llm = ChatOpenAI(model="gpt-4o", temperature=0.0, verbose=True)
+    llm = ChatOpenAI(model="gpt-4o", temperature=0.0)
     # 後からmax_tokensの値を変更できるように、変更可能なフィールドを宣言
     llm = llm.configurable_fields(max_tokens=ConfigurableField(id="max_tokens"))
 
@@ -132,7 +132,7 @@ if __name__ == "__main__":
     )
     compiled_workflow = workflow.compile()
     initial_state = State(query="生成AIについて教えてください")
-    result = compiled_workflow.invoke(initial_state)
+    result = compiled_workflow.invoke(initial_state, debug=True)
     pprint(result)
-    # 状態グラフを描画
+    # グラフを描画
     compiled_workflow.get_graph().draw_png("workflow.png")
