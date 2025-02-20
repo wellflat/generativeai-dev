@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import asyncio
 import operator
 from pprint import pprint
 from typing import Annotated
@@ -12,6 +13,7 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
 from langgraph.graph import END, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 dotenv_flow("dev")
 
@@ -90,6 +92,11 @@ def check_node(state: State) -> dict[str, bool|str]:
         "judgement_reason": result.reason
     }
 
+# 非同期ストリームを利用してワークフローを実行
+async def run_workflow(initial_state: State, workflow: CompiledStateGraph) -> None:
+    async for state in workflow.astream(initial_state):
+        print(state)
+
 
 if __name__ == "__main__":
     llm = ChatOpenAI(model="gpt-4o", temperature=0.0)
@@ -132,7 +139,12 @@ if __name__ == "__main__":
     )
     compiled_workflow = workflow.compile()
     initial_state = State(query="生成AIについて教えてください")
+     # ワークフローを同期実行
     result = compiled_workflow.invoke(initial_state, debug=True)
     pprint(result)
+
+    # 非同期ストリームを利用してワークフローを実行
+    asyncio.run(run_workflow(initial_state, compiled_workflow))
+
     # グラフを描画
     compiled_workflow.get_graph().draw_png("workflow.png")
