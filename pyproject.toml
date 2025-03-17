@@ -19,6 +19,7 @@ dependencies = [
     "langchain-ollama>=0.2.3",
     "langgraph>=0.2.73",
     "pygraphviz>=1.14",
+    "pydantic-settings>=2.7.1",
 ]
 
 [dependency-groups]
