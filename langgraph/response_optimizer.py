@@ -25,7 +25,7 @@ class PassiveGoalCreator:
     def __init__(self, llm: ChatOpenAI) -> None:
         self.llm = llm
 
-    def run(self, query: str) -> Goal:
+    def run(self, query: str, debug: bool=False) -> Goal:
         prompt = ChatPromptTemplate.from_template(
             "ユーザーの入力を分析し、明確で実行可能な目標を生成してください。\n"
             "要件:\n"
@@ -38,14 +38,14 @@ class PassiveGoalCreator:
         )
         chain = prompt | self.llm.with_structured_output(Goal)
         ## chain.invokeの出力はDictOrPydantic型であるためGoalカスタムクラスとして型チェック
-        result: Goal = Goal.model_validate(chain.invoke({"query": query}))
+        result: Goal = Goal.model_validate(chain.invoke({"query": query}, debug=debug))
         return result
 
 class PromptOptimizer:
     def __init__(self, llm: ChatOpenAI) -> None:
         self.llm = llm
 
-    def run(self, query: str) -> OptimizedGoal:
+    def run(self, query: str, debug: bool=False) -> OptimizedGoal:
         prompt = ChatPromptTemplate.from_template(
             "あなたは目標設定の専門家です。以下の目標をSMART原則"
             "(Specific: 具体的、Measurable: 測定可能、Achievable: 達成可能、Relevant: 関連性が高い、Time-bound: 期限がある)に基づいて最適化してください。\n\n"
@@ -64,7 +64,7 @@ class PromptOptimizer:
             "6. REMEMBER: 決して2.以外の行動を取ってはいけません。"
         )
         chain = prompt | self.llm.with_structured_output(OptimizedGoal)
-        result: OptimizedGoal = OptimizedGoal.model_validate(chain.invoke({"query": query}))
+        result: OptimizedGoal = OptimizedGoal.model_validate(chain.invoke({"query": query}, debug=debug))
         return result
 
 
@@ -72,7 +72,7 @@ class ResponseOptimizer:
     def __init__(self, llm: ChatOpenAI) -> None:
         self.llm = llm
 
-    def run(self, query: str) -> str:
+    def run(self, query: str, debug: bool=False) -> str:
         prompt = ChatPromptTemplate.from_messages(
             [
                 (
@@ -109,7 +109,7 @@ class ResponseOptimizer:
             ]
         )
         chain = prompt | self.llm | StrOutputParser()
-        return chain.invoke({"query": query})
+        return chain.invoke({"query": query}, debug=debug)
 
 
 if __name__ == "__main__":
@@ -122,7 +122,7 @@ if __name__ == "__main__":
     llm = ChatOpenAI(model="gpt-4o", temperature=0.0)
 
     passive_goal_creator = PassiveGoalCreator(llm=llm)
-    goal: Goal = passive_goal_creator.run(query=args.task)
+    goal: Goal = passive_goal_creator.run(query=args.task, debug=True)
     print(f"目標: {goal.text}")
     print("-----------------------------")
 
