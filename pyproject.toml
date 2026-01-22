@@ -19,9 +19,12 @@ dependencies = [
     "langchain-ollama>=0.2.3",
     "langgraph>=0.2.73",
     #"pygraphviz>=1.14",
-    "pydantic-settings>=2.7.1",
+    "pydantic-settings>=2.10.1",
     "huggingface-hub>=0.28.1",
     "gradio>=6.0.1",
+    "inspect-ai>=0.3.161",
+    "inspect-evals>=0.3.104",
+    "groq>=1.0.0",
 ]
 
 [dependency-groups]
